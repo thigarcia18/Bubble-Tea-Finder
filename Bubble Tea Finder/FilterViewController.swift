@@ -23,6 +23,13 @@
 import UIKit
 import CoreData
 
+protocol FilterViewControllerDelegate: class {
+    func filterViewController(
+        filter: FilterViewController,
+        didSelectPredicate predicate: NSPredicate?,
+        sortDescriptor: NSSortDescriptor?)
+}
+
 class FilterViewController: UITableViewController {
     
     @IBOutlet weak var firstPriceCategoryLabel: UILabel!
@@ -48,6 +55,9 @@ class FilterViewController: UITableViewController {
     
     // MARK: - Properties
     var coreDataStack: CoreDataStack!
+    weak var delegate: FilterViewControllerDelegate?
+    var selectedSortDescriptor: NSSortDescriptor?
+    var selectedPredicate: NSPredicate?
     lazy var cheapVenuePredicate: NSPredicate = {
         return NSPredicate(format: "%K == %@", #keyPath(Venue.priceInfo.priceCategory), "$")
     }()
@@ -65,6 +75,7 @@ class FilterViewController: UITableViewController {
         populateCheapVenueCountLabel()
         populateModerateVenueCountLabel()
         populateExpensiveVenueCountLabel()
+        populateDealsCountLabel()
     }
 }
 
@@ -72,7 +83,9 @@ class FilterViewController: UITableViewController {
 extension FilterViewController {
     
     @IBAction func saveButtonTapped(_ sender: UIBarButtonItem) {
+        delegate?.filterViewController(filter: self, didSelectPredicate: selectedPredicate, sortDescriptor: selectedSortDescriptor)
         
+        dismiss(animated: true)
     }
 }
 
@@ -80,7 +93,17 @@ extension FilterViewController {
 extension FilterViewController {
     
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        guard let cell = tableView.cellForRow(at: indexPath) else {
+            return
+        }
         
+        switch cell {
+        case cheapVenueCell: selectedPredicate = cheapVenuePredicate
+        case moderateVenueCell: selectedPredicate = moderateVenuePredicate
+        case expensiveVenueCell: selectedPredicate = expensiveVenuePredicate
+        default: break
+        }
+        cell.accessoryType = .checkmark
     }
 }
 
@@ -122,6 +145,31 @@ extension FilterViewController {
         do {
             let count = try coreDataStack.managedContext.count(for: fetchRequest)
             thirdPriceCategoryLabel.text = "\(count) bubble tea places"
+        } catch let error as NSError {
+            print("Could not fetch \(error), \(error.userInfo)")
+        }
+    }
+    
+    // Built-in method for sum
+    func populateDealsCountLabel() {
+        let fetchRequest = NSFetchRequest<NSDictionary>(entityName: "Venue")
+        fetchRequest.resultType = .dictionaryResultType
+        
+        let sumExpressionDesc = NSExpressionDescription()
+        sumExpressionDesc.name = "sumDeals"
+        
+        let specialCountExp = NSExpression(forKeyPath: #keyPath(Venue.specialCount))
+        sumExpressionDesc.expression = NSExpression(forFunction: "sum:", arguments: [specialCountExp])
+        sumExpressionDesc.expressionResultType = .integer32AttributeType
+        
+        fetchRequest.propertiesToFetch = [sumExpressionDesc]
+        
+        do {
+            let results = try coreDataStack.managedContext.fetch(fetchRequest)
+            
+            let resultDict = results.first!
+            let numDeals = resultDict["sumDeals"]!
+            numDealsLabel.text = "\(numDeals) total deals"
         } catch let error as NSError {
             print("Could not fetch \(error), \(error.userInfo)")
         }

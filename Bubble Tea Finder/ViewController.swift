@@ -57,6 +57,7 @@ class ViewController: UIViewController {
         }
         
         filterVC.coreDataStack = coreDataStack
+        filterVC.delegate = self
     }
 }
 
@@ -92,5 +93,20 @@ extension ViewController: UITableViewDataSource {
         cell.textLabel?.text = venue.name
         cell.detailTextLabel?.text = venue.priceInfo?.priceCategory
         return cell
+    }
+}
+
+//MARK: - FilterViewControllerDelegate
+extension ViewController: FilterViewControllerDelegate {
+    func filterViewController(filter: FilterViewController, didSelectPredicate predicate: NSPredicate?, sortDescriptor: NSSortDescriptor?) {
+        fetchRequest.predicate = nil
+        fetchRequest.sortDescriptors = nil
+        
+        fetchRequest.predicate = predicate
+        
+        if let sr = sortDescriptor {
+            fetchRequest.sortDescriptors = [sr]
+        }
+        fetchAndReload()
     }
 }
